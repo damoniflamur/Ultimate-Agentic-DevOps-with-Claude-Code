@@ -1,0 +1,15 @@
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/*.tfplan
+
+# Claude local settings (contains AWS credentials)
+.claude/settings.local.json
+
+# macOS
+.DS_Store
+
+# Environment
+.env

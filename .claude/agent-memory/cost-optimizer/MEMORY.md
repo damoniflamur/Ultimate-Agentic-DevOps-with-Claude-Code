@@ -1,0 +1,1 @@
+- [Portfolio site S3 + CloudFront cost review](portfolio-site-cost-review.md) — Static site deployment with 5 optimization opportunities, high savings potential

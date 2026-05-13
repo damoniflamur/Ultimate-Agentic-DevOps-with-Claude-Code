@@ -5,29 +5,38 @@ metadata:
   type: feedback
 ---
 
-Patterns confirmed in the first full audit (2026-05-13):
+Patterns from audit #1 (2026-05-13) and their current status as of audit #2 (2026-05-13):
 
-1. **tfstate committed to repo** — `terraform/terraform.tfstate` and `.backup` are tracked in git, exposing AWS account ID 890381434210 and resource ARNs. Backend block in backend.tf is commented out.
-   **Why:** No .gitignore for *.tfstate exists; bootstrap chicken-and-egg left state local.
+1. **tfstate on disk with account ID exposed** — `terraform/terraform.tfstate` and `.backup` exist on disk and contain AWS account ID 890381434210, CloudFront distribution ID, bucket ARNs, and domain names. Backend block in backend.tf is commented out so state is local-only.
+   - Audit #1 status: tfstate files were committed to git (CRITICAL).
+   - Audit #2 status: `terraform/.gitignore` now correctly lists both files; git status shows `?? terraform/` (entire dir untracked). Files are NOT committed. Risk downgraded to HIGH (local plaintext, no remote backend, no encryption at rest for state).
+   **Why:** Bootstrap chicken-and-egg; S3 backend not yet provisioned.
 
-2. **CloudFront: no response-headers policy** — `response_headers_policy_id` is empty. Security headers (HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy) are absent entirely.
-   **Why:** Never configured; the managed cache policy was added but the response-headers policy was overlooked.
+2. **CloudFront: no response-headers policy** — FIXED in audit #2. `response_headers_policy_id` is now set to `aws_cloudfront_response_headers_policy.security.id`. Full security headers (HSTS, CSP, X-Frame-Options, X-Content-Type, Referrer-Policy, XSS) are present.
 
-3. **CloudFront: default certificate uses TLSv1** — `cloudfront_default_certificate = true` forces `minimum_protocol_version = "TLSv1"`. Upgrading to ACM cert allows setting TLSv1.2_2021.
-   **Why:** No custom domain configured; `domain_name` variable exists but is empty.
+3. **CloudFront: default certificate forces TLSv1** — STILL PRESENT. `cloudfront_default_certificate = true` with no `minimum_protocol_version` override means AWS enforces TLSv1 minimum. The fix (ACM cert + TLSv1.2_2021) is present in a commented-out TODO block at main.tf:222-227.
+   **Why:** No custom domain configured yet.
 
-4. **CloudFront: no access logging** — `logging_config` is empty. No record of viewer requests.
+4. **CloudFront: no access logging** — FIXED in audit #2. `logging_config` block now present, targeting the logs bucket with prefix `cf-access/`.
 
-5. **CloudFront: no WAF WebACL** — `web_acl_id` is empty. No rate limiting or managed rule protection.
+5. **CloudFront: no WAF WebACL** — STILL PRESENT. Commented TODO at main.tf:174-177 documents intent. No `web_acl_id` set.
 
-6. **CloudFront: IPv6 disabled** — `is_ipv6_enabled = false`. Minor posture gap but worth enabling.
+6. **CloudFront: IPv6 disabled** — FIXED in audit #2. `is_ipv6_enabled = true`.
 
-7. **S3: versioning disabled** — `versioning.enabled = false`. Site content can be silently overwritten.
+7. **S3: versioning disabled** — FIXED in audit #2. `aws_s3_bucket_versioning.site` with `status = "Enabled"` and a 30-day noncurrent version expiration lifecycle rule.
 
-8. **S3: no access logging** — `logging` block empty. No record of GetObject calls.
+8. **S3: no access logging** — FIXED in audit #2. `aws_s3_bucket_logging.site` targets logs bucket with prefix `s3-access/`.
 
-9. **S3: SSE uses AES256 (AWS-managed), not CMK** — Acceptable for public static assets but worth noting; bucket_key_enabled = false wastes cost if CMK ever added.
+9. **S3: SSE uses AWS-managed AES256, not CMK** — STILL PRESENT (implicit, no `aws_s3_bucket_server_side_encryption_configuration` resource). AWS default encryption applies. Acceptable for public static assets.
 
-10. **Compression disabled** — `compress = false` in default_cache_behavior. Performance issue, not security.
+10. **Compression disabled** — FIXED in audit #2. `compress = true` in default_cache_behavior.
 
-**How to apply:** On every future audit, scan for these patterns first before looking for new issues.
+11. **Logs bucket: no encryption resource** — NEW. `aws_s3_bucket.logs` has no `aws_s3_bucket_server_side_encryption_configuration`. AWS default encryption applies silently, but explicit SSE configuration is best practice.
+
+12. **Logs bucket: no versioning** — NEW. Only the site bucket has versioning; the logs bucket does not.
+
+13. **No root-level .gitignore** — NEW. The repo has no root `.gitignore`. Only `terraform/.gitignore` protects tfstate. If someone accidentally runs `git add .` from root, tfstate files might be staged if the scoped .gitignore is bypassed by certain git configurations.
+
+14. **CSP uses `unsafe-inline` for style-src** — NEW. main.tf:165 sets `style-src 'self' 'unsafe-inline'`. This weakens XSS protection for style injection attacks. Acceptable if inline styles are required by the site; worth tracking.
+
+**How to apply:** On every future audit, scan for these patterns first before looking for new issues. Items marked FIXED should be checked for regression.
