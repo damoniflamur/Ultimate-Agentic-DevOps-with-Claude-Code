@@ -1,0 +1,9 @@
+# Local Terraform state — NEVER commit these files.
+# Until the S3 backend in backend.tf is activated and migrated to,
+# tfstate lives here on disk. Committing it exposes secrets (bucket ARNs,
+# CloudFront IDs) and causes state conflicts across teammates.
+terraform.tfstate
+terraform.tfstate.backup
+
+# Terraform working directory — contains provider binaries and cached modules
+.terraform/
