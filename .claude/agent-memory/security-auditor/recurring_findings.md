@@ -5,7 +5,7 @@ metadata:
   type: feedback
 ---
 
-Patterns from audit #1 (2026-05-13) and their current status as of audit #2 (2026-05-13):
+Patterns from audit #1 (2026-05-13) and their current status as of audit #3 (2026-05-13):
 
 1. **tfstate on disk with account ID exposed** — `terraform/terraform.tfstate` and `.backup` exist on disk and contain AWS account ID 890381434210, CloudFront distribution ID, bucket ARNs, and domain names. Backend block in backend.tf is commented out so state is local-only.
    - Audit #1 status: tfstate files were committed to git (CRITICAL).
@@ -38,5 +38,11 @@ Patterns from audit #1 (2026-05-13) and their current status as of audit #2 (202
 13. **No root-level .gitignore** — NEW. The repo has no root `.gitignore`. Only `terraform/.gitignore` protects tfstate. If someone accidentally runs `git add .` from root, tfstate files might be staged if the scoped .gitignore is bypassed by certain git configurations.
 
 14. **CSP uses `unsafe-inline` for style-src** — NEW. main.tf:165 sets `style-src 'self' 'unsafe-inline'`. This weakens XSS protection for style injection attacks. Acceptable if inline styles are required by the site; worth tracking.
+
+15. **custom_error_response returns HTTP 200 for 404** — main.tf:202-206 maps error_code 404 to response_code 200. This masks real 404 errors from monitoring and log analysis tools. Should return response_code 404 (or a dedicated 404 HTML page with the correct status code).
+    - Audit #3 status: STILL PRESENT.
+
+16. **No lifecycle rule on logs bucket** — `aws_s3_bucket.logs` has no lifecycle configuration. Access logs will accumulate indefinitely, increasing storage cost and exposing long-term access patterns.
+    - Audit #3 status: STILL PRESENT.
 
 **How to apply:** On every future audit, scan for these patterns first before looking for new issues. Items marked FIXED should be checked for regression.

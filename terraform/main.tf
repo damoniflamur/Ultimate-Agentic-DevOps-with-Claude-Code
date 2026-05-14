@@ -14,6 +14,10 @@ resource "aws_s3_bucket" "logs" {
     Project     = var.project_name
     Environment = var.environment
   }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "logs" {
@@ -44,6 +48,10 @@ resource "aws_s3_bucket" "site" {
   tags = {
     Project     = var.project_name
     Environment = var.environment
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -84,6 +92,59 @@ resource "aws_s3_bucket_logging" "site" {
 
   target_bucket = aws_s3_bucket.logs.id
   target_prefix = "s3-access/"
+}
+
+# Fix M-2: explicit SSE for site bucket (AES256 is free; bucket_key_enabled reduces KMS call cost if migrated later)
+resource "aws_s3_bucket_server_side_encryption_configuration" "site" {
+  bucket = aws_s3_bucket.site.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+# Fix M-2: explicit SSE for logs bucket
+resource "aws_s3_bucket_server_side_encryption_configuration" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+# Fix M-3: versioning on logs bucket (enables noncurrent expiration below)
+resource "aws_s3_bucket_versioning" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# Fix M-4: expire log objects after 90 days; prune noncurrent versions after 30 days
+resource "aws_s3_bucket_lifecycle_configuration" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  depends_on = [aws_s3_bucket_versioning.logs]
+
+  rule {
+    id     = "expire-logs"
+    status = "Enabled"
+
+    expiration {
+      days = 90
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -162,7 +223,7 @@ resource "aws_cloudfront_response_headers_policy" "security" {
     }
 
     content_security_policy {
-      content_security_policy = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; frame-ancestors 'none';"
+      content_security_policy = "default-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'; frame-ancestors 'none';"
       override                = true
     }
   }
@@ -200,9 +261,10 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   custom_error_response {
-    error_code         = 404
-    response_code      = 200
-    response_page_path = "/index.html"
+    error_code            = 404
+    response_code         = 404
+    response_page_path    = "/index.html"
+    error_caching_min_ttl = 10
   }
 
   logging_config {
@@ -232,5 +294,9 @@ resource "aws_cloudfront_distribution" "site" {
   tags = {
     Project     = var.project_name
     Environment = var.environment
+  }
+
+  lifecycle {
+    prevent_destroy = true
   }
 }

@@ -17,6 +17,13 @@
         "awslabs.aws-api-mcp-server@latest"
       ],
       "env": {}
+    },
+    "kubernetes": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "kubernetes-mcp-server"
+      ]
     }
   }
 }

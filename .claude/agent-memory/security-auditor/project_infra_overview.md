@@ -1,13 +1,13 @@
 ---
 name: project-infra-overview
-description: Infrastructure layout for the portfolio-site project — S3 + CloudFront + OAC, no OIDC/IAM role in current TF files (last verified 2026-05-13 audit #2)
+description: Infrastructure layout for the portfolio-site project — S3 + CloudFront + OAC, no OIDC/IAM role in current TF files (last verified 2026-05-13 audit #3)
 metadata:
   type: project
 ---
 
 Static portfolio site deployed to AWS via S3 + CloudFront, provisioned with Terraform.
 
-**Resources in terraform/ (as of 2026-05-13 audit #2):**
+**Resources in terraform/ (as of 2026-05-13 audit #3 — no change from audit #2):**
 - `aws_s3_bucket.site` — private bucket, all public access blocked, versioning ENABLED, server-access logging to logs bucket, 30-day noncurrent version lifecycle expiration
 - `aws_s3_bucket.logs` — receives CF and S3 access logs, all public access blocked, BucketOwnerPreferred ownership controls; NO explicit SSE, NO versioning
 - `aws_s3_bucket_public_access_block.site` / `.logs` — all four flags true on both buckets
